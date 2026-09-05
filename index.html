@@ -1,0 +1,322 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="color-scheme" content="dark light">
+<title>Commute</title>
+<style>
+  :root {
+    --bg: #0d1117; --panel: #161b22; --line: #272e37;
+    --fg: #e6edf3; --dim: #8b949e;
+    --ok: #3fb950; --warn: #d29922; --alert: #f85149; --pending: #6e7681;
+    --accent: var(--dim);
+  }
+  @media (prefers-color-scheme: light) {
+    :root {
+      --bg: #f6f8fa; --panel: #fff; --line: #d8dee4;
+      --fg: #1f2328; --dim: #59636e;
+      --ok: #1a7f37; --warn: #9a6700; --alert: #cf222e; --pending: #848d97;
+    }
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body { min-height: 100%; }
+  body {
+    background: var(--bg); color: var(--fg);
+    font: 400 16px/1.45 ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+    padding: clamp(12px, 3vw, 28px);
+    display: flex; justify-content: center;
+  }
+  .wrap { width: 100%; max-width: 640px; }
+
+  header { display: flex; justify-content: space-between; align-items: baseline;
+           gap: 12px; margin-bottom: clamp(10px, 2vw, 18px); flex-wrap: wrap; }
+  .leg { font-weight: 600; letter-spacing: .04em; text-transform: uppercase;
+         font-size: clamp(11px, 2.2vw, 13px); color: var(--dim); }
+  .age { font-size: clamp(11px, 2.2vw, 13px); color: var(--dim); font-variant-numeric: tabular-nums; }
+  .age.stale { color: var(--warn); }
+
+  .card { background: var(--panel); border: 1px solid var(--line);
+          border-left: 5px solid var(--accent); border-radius: 12px;
+          padding: clamp(16px, 4vw, 28px); }
+  /* Neutral, deliberately not green: nothing has been checked yet, so showing "all clear"
+     would be false reassurance. */
+  .card[data-state="pending"] { --accent: var(--pending); }
+  .card[data-state="ok"]    { --accent: var(--ok); }
+  .card[data-state="warn"]  { --accent: var(--warn); }
+  .card[data-state="alert"] { --accent: var(--alert); }
+
+  .label { font-size: clamp(11px, 2.2vw, 13px); letter-spacing: .1em;
+           text-transform: uppercase; color: var(--dim); }
+  /* Scales with height as well as width so a small landscape panel still fits everything.
+     The caps are deliberately generous: on a dedicated 5" display the constraint is how
+     large the digits are in millimetres, not pixels, and a higher-resolution panel of the
+     same physical size makes every CSS pixel smaller. Filling the available height is what
+     keeps it readable from across a room. */
+  .time { font-size: min(clamp(56px, 19vw, 168px), 26vh); line-height: 1; font-weight: 700;
+          letter-spacing: -.03em; font-variant-numeric: tabular-nums;
+          color: var(--accent); margin: 4px 0 2px; }
+  .headline { font-size: clamp(15px, 3.4vw, 20px); font-weight: 600; margin-top: 10px; }
+  .delta { font-size: clamp(13px, 2.8vw, 15px); color: var(--dim); margin-top: 4px; }
+
+  .train { margin-top: clamp(14px, 3vw, 20px); padding-top: clamp(14px, 3vw, 20px);
+           border-top: 1px solid var(--line);
+           font-size: clamp(14px, 3vw, 17px); font-variant-numeric: tabular-nums; }
+  .train .muted { color: var(--dim); }
+  .struck { text-decoration: line-through; color: var(--dim); }
+
+  ul.reasons { margin-top: 12px; padding-left: 18px; font-size: clamp(13px, 2.8vw, 15px);
+               color: var(--dim); }
+  ul.reasons li { margin-top: 5px; }
+
+  .chips { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 14px; }
+  .chip { font-size: clamp(11px, 2.4vw, 13px); padding: 3px 10px; border-radius: 999px;
+          border: 1px solid var(--line); color: var(--dim); }
+  .chip.bad { border-color: var(--alert); color: var(--alert); }
+
+  .history { margin-top: 18px; }
+  .history h2 { font-size: 14px; letter-spacing: .08em; text-transform: uppercase;
+                color: var(--dim); margin-bottom: 8px; }
+  .service { display: grid; grid-template-columns: 82px minmax(112px, 1fr) 92px;
+             gap: 8px 12px; align-items: center; padding: 10px 2px;
+             border-top: 1px solid var(--line); font-size: 14px;
+             font-variant-numeric: tabular-nums; }
+  .service-route { color: var(--dim); }
+  .service-times strong { display: block; }
+  .service-times small { color: var(--dim); }
+  .service-result { text-align: right; font-weight: 600; }
+  .service-result.cancelled, .service-result.delayed { color: var(--alert); }
+  .service-result.pending { color: var(--warn); }
+  .service-result small { display: block; color: var(--dim); font-weight: 400; }
+
+  /* Landscape ticker / small kiosk panel: keep everything on one screen, no scrolling. */
+  @media (max-height: 560px) {
+    body { padding: 10px 14px; }
+    .wrap { max-width: 900px; }
+    .card { padding: 12px 18px; border-radius: 10px; }
+    .headline { margin-top: 6px; }
+    .train { margin-top: 10px; padding-top: 10px; }
+    ul.reasons { margin-top: 6px; }
+    ul.reasons li { margin-top: 2px; }
+    .chips { margin-top: 8px; }
+  }
+
+  /* Genuinely tiny panels (3.5" TFT and similar): keep it glanceable. The leave-by time
+     and the train are what you look at from across a room; the detail is on your phone. */
+  @media (max-height: 400px) {
+    ul.reasons, .chips { display: none; }
+    .headline { font-size: 15px; }
+  }
+
+  @media (max-width: 420px) {
+    .service { grid-template-columns: 72px minmax(100px, 1fr) 82px; gap: 6px; font-size: 13px; }
+  }
+
+  .setup { margin-top: 18px; font-size: 13px; color: var(--dim); }
+  .setup p:not(:first-child) { margin-top: 12px; }
+  .setup input { font: inherit; padding: 8px 10px; border-radius: 8px; width: 100%;
+                 max-width: 340px; background: var(--bg); color: var(--fg);
+                 border: 1px solid var(--line); margin-top: 8px; }
+  button { font: inherit; padding: 8px 14px; border-radius: 8px; cursor: pointer;
+           background: var(--panel); color: var(--fg); border: 1px solid var(--line);
+           margin-top: 8px; }
+  code { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: .9em; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <span class="leg" id="leg">Commute</span>
+    <span class="age" id="age">connecting…</span>
+  </header>
+
+  <div class="card" id="card" data-state="">
+    <div class="label" id="label">Leave by</div>
+    <div class="time" id="time">--:--</div>
+    <div class="headline" id="headline">Waiting for the first update…</div>
+    <div class="delta" id="delta"></div>
+    <div class="train" id="train" hidden></div>
+    <ul class="reasons" id="reasons"></ul>
+    <div class="chips" id="chips"></div>
+  </div>
+
+  <section class="history" id="history" hidden>
+    <h2>Train history · travel windows</h2>
+    <div id="services"></div>
+  </section>
+
+  <div class="setup" id="setup" hidden>
+    <p>Enter your ntfy <strong>status</strong> topic (the value of <code>NTFY_STATUS_TOPIC</code>):</p>
+    <input id="topicInput" placeholder="commute-status-…" autocapitalize="off" spellcheck="false">
+    <p>ntfy server (leave this as ntfy.sh unless you self-host):</p>
+    <input id="baseInput" value="https://ntfy.sh" autocapitalize="off" spellcheck="false">
+    <br><button id="save">Save</button>
+  </div>
+</div>
+
+<script>
+// Reads the status feed the tracker publishes to ntfy. No server, no build step, no auth —
+// the same endpoint an ESP32 or e-ink panel can poll. The schema is versioned in
+// commute/model.py; anything built against it keeps working.
+(function () {
+  const POLL_MS = 30000;
+  const STALE_MS = 20 * 60 * 1000;
+  const DEFAULT_BASE = "https://ntfy.sh";
+  const $ = (id) => document.getElementById(id);
+  const escapeHtml = (value) => String(value ?? "").replace(
+    /[&<>"']/g,
+    (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c])
+  );
+
+  function validBase(value) {
+    try {
+      const parsed = new URL(value);
+      return ["http:", "https:"].includes(parsed.protocol)
+        ? parsed.href.replace(/\/$/, "") : "";
+    } catch (_) { return ""; }
+  }
+
+  function topic() {
+    const fromHash = new URLSearchParams(location.hash.slice(1)).get("topic");
+    if (fromHash) localStorage.setItem("commuteTopic", fromHash);
+    return fromHash || localStorage.getItem("commuteTopic") || "";
+  }
+
+  function baseUrl() {
+    const fromHash = new URLSearchParams(location.hash.slice(1)).get("base");
+    const checkedHash = fromHash ? validBase(fromHash) : "";
+    if (checkedHash) localStorage.setItem("commuteBase", checkedHash);
+    return checkedHash || validBase(localStorage.getItem("commuteBase")) || DEFAULT_BASE;
+  }
+
+  $("save").onclick = () => {
+    const value = $("topicInput").value.trim();
+    const base = validBase($("baseInput").value.trim());
+    if (value && base) {
+      localStorage.setItem("commuteTopic", value);
+      localStorage.setItem("commuteBase", base);
+      location.hash = "";
+      refresh();
+    }
+  };
+  $("baseInput").value = baseUrl();
+
+  function ago(iso) {
+    const seconds = Math.max(0, (Date.now() - new Date(iso)) / 1000);
+    if (seconds < 90) return "just now";
+    const minutes = Math.round(seconds / 60);
+    if (minutes < 60) return minutes + " min ago";
+    return Math.round(minutes / 60) + "h ago";
+  }
+
+  function render(s) {
+    $("leg").textContent = s.leg + (s.day_variant && s.day_variant !== "default"
+      ? ` · ${s.day_variant} (early)` : "");
+
+    // History is expected to sit unchanged between commute days; the Friday-to-Tuesday
+    // gap is legitimate, not a broken monitor.
+    const staleAfter = s.phase === "history" ? 4 * 24 * 60 * 60 * 1000 : STALE_MS;
+    const stale = Date.now() - new Date(s.generated_at) > staleAfter;
+    $("age").textContent = (stale ? "stale · " : "") + ago(s.generated_at);
+    $("age").classList.toggle("stale", stale);
+
+    $("card").dataset.state = s.state;
+    const t = s.train;
+    // En route there is no leave-by left to show — the train you are heading for is the
+    // number worth reading from across a room.
+    if (s.phase === "history") {
+      const today = (s.service_history || []).filter((item) => item.date === s.generated_at.slice(0, 10));
+      $("time").textContent = String(today.length);
+      $("label").textContent = "Services in this travel window";
+    } else if (s.phase === "enroute") {
+      $("time").textContent = t ? (t.estimated || t.scheduled) : "--:--";
+      $("label").textContent = t ? "Your train" : "En route";
+    } else {
+      $("time").textContent = s.leave_by || "--:--";
+      $("label").textContent = s.leave_by ? "Leave by" : "No leave-by time";
+    }
+    $("headline").textContent = s.headline;
+
+    const delta = s.minutes_earlier;
+    $("delta").textContent = !s.leave_by ? ""
+      : delta > 0 ? `${delta} min earlier than your usual ${s.baseline_leave_by}`
+      : delta < 0 ? `${-delta} min later than your usual ${s.baseline_leave_by}`
+      : `Same as usual`;
+    if (t) {
+      const parts = [];
+      const late = t.estimated && t.estimated !== t.scheduled;
+      parts.push(t.cancelled
+        ? `<span class="struck">${escapeHtml(t.scheduled)}</span> <span class="muted">cancelled</span>`
+        : late ? `<span class="struck">${escapeHtml(t.scheduled)}</span> ${escapeHtml(t.estimated)}`
+          : `<strong>${escapeHtml(t.scheduled)}</strong>`);
+      parts.push(`<span class="muted">${escapeHtml(s.origin)} → ${escapeHtml(s.destination)}</span>`);
+      if (t.arrives) parts.push(`<span class="muted">arr</span> ${escapeHtml(t.arrives)}`);
+      if (t.platform) parts.push(`<span class="muted">plat</span> ${escapeHtml(t.platform)}`);
+      $("train").innerHTML = parts.join(" &nbsp;·&nbsp; ");
+      $("train").hidden = false;
+    } else {
+      $("train").hidden = true;
+    }
+
+    $("reasons").innerHTML = (s.reasons || [])
+      .map((r) => `<li>${escapeHtml(r)}</li>`)
+      .join("");
+
+    $("chips").innerHTML = (s.tube || [])
+      .map((t) => `<span class="chip${t.penalty_minutes > 0 ? " bad" : ""}">${escapeHtml(t.line)}: ${escapeHtml(t.description)}</span>`)
+      .join("");
+
+    renderHistory(s.service_history || []);
+  }
+
+  function renderHistory(records) {
+    $("history").hidden = records.length === 0;
+    $("services").innerHTML = records.slice(0, 50).map((item) => {
+      const arrival = item.actual_arrival || item.estimated_arrival || "--:--";
+      const arrivalKind = item.actual_arrival ? "actual" : item.estimated_arrival ? "forecast" : "awaiting";
+      let result = "on time";
+      if (item.status === "cancelled") result = "cancelled";
+      else if (item.status === "pending") result = "pending";
+      else if (item.delay_minutes > 0) result = `+${escapeHtml(item.delay_minutes)} min`;
+      const provisional = item.provisional && item.status !== "pending" ? "forecast" : "";
+      return `<div class="service">
+        <div><strong>${escapeHtml(item.date.slice(5))}</strong><div class="service-route">${escapeHtml(item.origin)}→${escapeHtml(item.destination)}</div></div>
+        <div class="service-times"><strong>${escapeHtml(item.scheduled_departure)} → ${escapeHtml(arrival)}</strong><small>scheduled departure · ${escapeHtml(arrivalKind)} arrival</small></div>
+        <div class="service-result ${escapeHtml(item.status)}">${result}<small>${escapeHtml(provisional)}</small></div>
+      </div>`;
+    }).join("");
+  }
+
+  async function refresh() {
+    const name = topic();
+    $("setup").hidden = !!name;
+    if (!name) { $("age").textContent = "not configured"; $("headline").textContent = "Set your status topic below."; return; }
+
+    try {
+      const res = await fetch(`${baseUrl()}/${encodeURIComponent(name)}/json?poll=1&since=latest`);
+      if (!res.ok) throw new Error("HTTP " + res.status);
+      const lines = (await res.text()).trim().split("\n").filter(Boolean);
+      // ntfy returns oldest-first; the last message with a parseable body is current.
+      for (let i = lines.length - 1; i >= 0; i--) {
+        try {
+          const body = JSON.parse(lines[i]).message;
+          const status = JSON.parse(body);
+          if (status && status.schema) { render(status); return; }
+        } catch (_) { /* not a status payload — keep looking */ }
+      }
+      $("age").textContent = "no data yet";
+      $("headline").textContent = "No cached status update is available.";
+    } catch (err) {
+      $("age").textContent = "offline";
+      $("age").classList.add("stale");
+    }
+  }
+
+  refresh();
+  setInterval(refresh, POLL_MS);
+  addEventListener("hashchange", refresh);
+  addEventListener("visibilitychange", () => { if (!document.hidden) refresh(); });
+})();
+</script>
+</body>
+</html>

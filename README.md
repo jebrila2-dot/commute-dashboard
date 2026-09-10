@@ -1,15 +1,21 @@
 # Commute dashboard
 
-A static, privacy-safe viewer for the private Commute tracker.
+Static viewer for a private train archive and saved journeys.
 
-**Live site:** https://jebrila2-dot.github.io/commute-dashboard/
+**Live site:** [Commute dashboard](https://jebrila2-dot.github.io/commute-dashboard/)
 
-The public repository contains only the dashboard code. It does not contain commute configuration, journey history, API keys, or an ntfy topic.
+## Using the dashboard
 
-## First use
+Sign in with your provisioned dashboard account. Choose a recent commute-day tab and direction, then select **I took this** or **I intended to take this**. If you took a different train, select it in the journey panel. Tick **Claimed** after submitting your claim on Great Northern's own portal.
 
-1. Open the live site.
-2. Enter the private `NTFY_STATUS_TOPIC` value.
-3. Leave the server as `https://ntfy.sh` and select **Save**.
+Arrival delays use recorded railway arrivals, not estimates or user-entered arrival times. Missing historical evidence remains explicitly unconfirmed. The dashboard does not submit claims, accept tickets or track payments.
 
-The topic is stored only in that browser's local storage. The page then reads the current status directly from ntfy. Do not commit or share the topic.
+## Public and private data
+
+This repository contains only static viewer assets and browser-safe connection settings. The configured route, travel windows and commute-day defaults are visible in the interface code. The Supabase publishable key identifies the project; database permissions and owner-based row security control access to private records.
+
+Saved journeys, train observations, railway API secrets, account credentials and notification topics are not included in this repository. The private collector repository remains separate. Public registration is not offered.
+
+## Previous dashboard
+
+[Live advice / previous dashboard](https://jebrila2-dot.github.io/commute-dashboard/legacy.html) remains available. Its private ntfy status topic is entered by the user and stored in that browser only. Do not commit or share the topic.

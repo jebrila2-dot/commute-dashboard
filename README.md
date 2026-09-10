@@ -6,7 +6,7 @@ Static viewer for a private train archive and saved journeys.
 
 ## Using the dashboard
 
-Sign in with your provisioned dashboard account. Choose a recent commute-day tab and direction, then select **I took this** or **I intended to take this**. If you took a different train, select it in the journey panel. Tick **Claimed** after submitting your claim on Great Northern's own portal.
+Sign in with your provisioned dashboard account. **Live advice** opens by default and uses your browser's saved ntfy status topic. **Trains** is the second tab and **Saved journeys** is the third. In Trains, choose a recent commute-day tab and direction, then select **I took this** or **I intended to take this**. If you took a different train, select it in the journey panel. Tick **Claimed** after submitting your claim on Great Northern's own portal.
 
 Arrival delays use recorded railway arrivals, not estimates or user-entered arrival times. Missing historical evidence remains explicitly unconfirmed. The dashboard does not submit claims, accept tickets or track payments.
 
